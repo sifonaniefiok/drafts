@@ -46,6 +46,17 @@ class Commit:
     files: tuple[str, ...] = ()
 
 
+def parse_git_date(value: str) -> datetime:
+    """Parse git's strict ISO 8601 date (``%aI``).
+
+    Newer git versions print UTC as ``Z``, which ``datetime.fromisoformat``
+    only accepts from Python 3.11 on, so normalise it first.
+    """
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    return datetime.fromisoformat(value)
+
+
 class GitRepo:
     """Run git commands against the repository rooted at ``root``."""
 
@@ -168,7 +179,7 @@ class GitRepo:
             header, _, file_block = record.partition("\n")
             sha, short, date, subject = header.split(_FIELD, 3)
             files = tuple(line for line in file_block.splitlines() if line.strip())
-            commits.append(Commit(sha, short, datetime.fromisoformat(date), subject, files))
+            commits.append(Commit(sha, short, parse_git_date(date), subject, files))
         return commits
 
     def show(self, rev: str, path: str) -> str | None:

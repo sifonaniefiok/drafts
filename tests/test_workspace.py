@@ -1,9 +1,10 @@
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
-from drafts.gitrepo import FALLBACK_EMAIL, FALLBACK_NAME, GitRepo
+from drafts.gitrepo import FALLBACK_EMAIL, FALLBACK_NAME, GitRepo, parse_git_date
 from drafts.workspace import DraftNotFoundError, Workspace, default_root
 
 
@@ -152,3 +153,17 @@ def test_cat_files_batch_reads_many_versions_and_missing(ws: Workspace) -> None:
     second = ws.commit("a", "2")
     texts = ws.git.cat_files([f"{first}:a.md", f"{second}:a.md", f"{first}^:a.md", "HEAD:nope"])
     assert texts == ["line one\n", "line one\nline two ünïcode\n", None, None]
+
+
+@pytest.mark.parametrize(
+    ("raw", "offset"),
+    [
+        ("2026-10-01T21:25:12Z", timedelta(0)),  # newer git prints UTC as "Z"
+        ("2026-10-01T21:25:12+00:00", timedelta(0)),
+        ("2026-10-01T23:25:12+02:00", timedelta(hours=2)),
+    ],
+)
+def test_parse_git_date_accepts_every_utc_spelling(raw: str, offset: timedelta) -> None:
+    parsed = parse_git_date(raw)
+    assert parsed.utcoffset() == offset
+    assert parsed == datetime(2026, 10, 1, 21, 25, 12, tzinfo=timezone.utc)
